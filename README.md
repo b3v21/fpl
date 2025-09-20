@@ -1,4 +1,4 @@
-## FPL Optimisation using LP w/ Google OR Tools
+### FPL Optimisation using LP w/ Google OR Tools
 
 ## Setup
 
