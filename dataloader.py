@@ -3,6 +3,8 @@ import numpy as np
 
 SEASON = "2025-26"
 CURRENT_GW = 6
+TOTAL_GWS = 38
+GWS = range(CURRENT_GW, TOTAL_GWS + 1)
 
 """
 Singleton class for storing and accessing data to be used in the engine
@@ -87,7 +89,7 @@ class Dataloader:
         self.player_price = dict(zip(player_data["id"], player_data["now_cost"]))
 
         # Player ID -> Expected Points this week
-        self.player_expected_points = dict(zip(player_data["id"], player_data["ep_this"]))
+        self.player_expected_points = {(player_id, t): xp for player_id, xp in zip(player_data["id"], player_data["ep_this"]) for t in GWS}
 
         # Player ID -> Position Mask (o.t.f [1,0,0,0])
         self.player_position_mask = {
@@ -105,8 +107,9 @@ class Dataloader:
 
         # Fixture Difficulty next week
         self.player_fixture_difficulty = {
-            player_id: self.team_diff[self.team_vs_team[self.team_code_team_id[team_code]]]
+            (player_id, t): self.team_diff[self.team_vs_team[self.team_code_team_id[team_code]]]
             for player_id, team_code in zip(player_data["id"], player_data["team_code"])
+            for t in GWS
         }
 
         # Chance of playing this week
