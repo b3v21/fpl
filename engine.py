@@ -1,7 +1,6 @@
 from ortools.init.python import init
 from ortools.sat.python import cp_model
-import pandas as pd
-import numpy as np
+from dataloader import Dataloader
 
 SEASON = "2025-26"
 
@@ -9,8 +8,6 @@ GK = 1
 DEF = 2
 MID = 3
 ATT = 4
-
-NUM_TEAMS = 20
 
 POS_LOOKUP = {GK: "Goalkeepers", DEF: "Defenders", MID: "Midfielders", ATT: "Attackers"}
 
@@ -29,124 +26,98 @@ def run_engine():
         print("Could not create solver CP-SAT")
         return
 
-    # Fetch data from CSVs for solve
-    data = fetch_data()
+    # Fetch data from dataloader singleton
+    DL = Dataloader()
 
-    x = {pid: model.new_int_var(0, 1, f"x_{pid}") for pid in data["I"]}
-    y = {pid: model.new_int_var(0, 1, f"y_{pid}") for pid in data["I"]}
+    x = {pid: model.new_int_var(0, 1, f"x_{pid}") for pid in DL.player_ids}
+    y = {pid: model.new_int_var(0, 1, f"y_{pid}") for pid in DL.player_ids}
 
     var = {"x": x, "y": y}
 
-    model = build_constraints(model, var, data)
+    model = build_constraints(model, var)
 
     # OBJECTIVE FUNCTION
-    model.maximize(sum(x[pid] * data["XPN"][pid] for pid in data["I"]))
+    model.maximize(
+        sum(y[pid] * DL.player_expected_points[pid] for pid in DL.player_ids)
+        + sum(y[pid] * (3 - DL.player_fixture_difficulty[pid]) for pid in DL.player_ids)
+    )
+    # in this niave model, a fixture difficultly of '1' gives the player an XP of +2, '2' is +1, '3' is 0, '4' is -1 and '5' is -2,
+    # this is done via the linear function 3 - DF
 
-    solve(model, solver, data, var)
+    solve(model, solver, var)
 
 
-def build_constraints(model, var, data):
-    x = var["x"]
-    P = data["P"]
-    pids = data["I"]
-    positions = data["PP"]
-    ptm = data["PTM"]  # player team mask
+def build_constraints(model, var):
+    x, y = var["x"], var["y"]
+
+    # Fetch data from dataloader singleton
+    DL = Dataloader()
+
+    pids = DL.player_ids
 
     # cost constraint
-    model.add(cp_model.LinearExpr.sum([P[pid] * x[pid] for pid in pids]) <= 1000)
+    model.add(cp_model.LinearExpr.sum([DL.player_price[pid] * x[pid] for pid in pids]) <= 1000)
+
+    # we generally want to have most of our money in the team (TODO: this constraint MIGHT be removed later)
+    model.add(cp_model.LinearExpr.sum([DL.player_price[pid] * x[pid] for pid in pids]) >= 970)
 
     # number of players in squad constraint
     model.add(cp_model.LinearExpr.sum([x[pid] for pid in pids]) == 15)
 
     # 2 GKs allowed
-    model.add(
-        cp_model.LinearExpr.sum([x[pid] * positions[pid][GK - 1] for pid in pids]) == 2
-    )
+    model.add(cp_model.LinearExpr.sum([x[pid] * DL.player_position_mask[pid][GK - 1] for pid in pids]) == 2)
 
     # 5 DEFs allowed
-    model.add(
-        cp_model.LinearExpr.sum([x[pid] * positions[pid][DEF - 1] for pid in pids]) == 5
-    )
+    model.add(cp_model.LinearExpr.sum([x[pid] * DL.player_position_mask[pid][DEF - 1] for pid in pids]) == 5)
 
     # 5 MIDs allowed
-    model.add(
-        cp_model.LinearExpr.sum([x[pid] * positions[pid][MID - 1] for pid in pids]) == 5
-    )
+    model.add(cp_model.LinearExpr.sum([x[pid] * DL.player_position_mask[pid][MID - 1] for pid in pids]) == 5)
 
     # 3 ATTs allowed
-    model.add(
-        cp_model.LinearExpr.sum([x[pid] * positions[pid][ATT - 1] for pid in pids]) == 3
-    )
+    model.add(cp_model.LinearExpr.sum([x[pid] * DL.player_position_mask[pid][ATT - 1] for pid in pids]) == 3)
+
+    # 1 GK on the field
+    model.add(cp_model.LinearExpr.sum([y[pid] * DL.player_position_mask[pid][GK - 1] for pid in pids]) == 1)
+
+    # 3-5 DEFs on the field
+    model.add(cp_model.LinearExpr.sum([y[pid] * DL.player_position_mask[pid][DEF - 1] for pid in pids]) >= 3)
+    model.add(cp_model.LinearExpr.sum([y[pid] * DL.player_position_mask[pid][DEF - 1] for pid in pids]) <= 5)
+
+    # 2-5 MIDs on the field
+    model.add(cp_model.LinearExpr.sum([y[pid] * DL.player_position_mask[pid][MID - 1] for pid in pids]) >= 2)
+    model.add(cp_model.LinearExpr.sum([y[pid] * DL.player_position_mask[pid][MID - 1] for pid in pids]) <= 5)
+
+    # 1-3 ATTs on the field
+    model.add(cp_model.LinearExpr.sum([y[pid] * DL.player_position_mask[pid][ATT - 1] for pid in pids]) >= 1)
+    model.add(cp_model.LinearExpr.sum([y[pid] * DL.player_position_mask[pid][ATT - 1] for pid in pids]) <= 3)
 
     # max 3 players per team
-    for team_code in data["TC"].keys():
-        # print(team_code)
-        model.add(
-            cp_model.LinearExpr.sum([x[pid] * ptm[pid][team_code] for pid in pids]) <= 3
-        )
+    for team_code in DL.team_code_name.keys():
+        model.add(cp_model.LinearExpr.sum([x[pid] * DL.player_team_mask[pid][team_code] for pid in pids]) <= 3)
+
+    # max 11 players on the field
+    model.add(cp_model.LinearExpr.sum([y[pid] for pid in pids]) == 11)
+
+    # a player must be in the team in order to be on the field
+    for pid in pids:
+        model.add(y[pid] <= x[pid])
+
+    # don't play any players that are potentially injured / dont exist (cut constraint)
+    for pid in pids:
+        if DL.player_chance_of_playing[pid] < 75:
+            model.add(y[pid] == 0)
 
     return model
 
 
-def fetch_data():
-    player_data = pd.read_csv(f"data/{SEASON}/players_raw.csv")
-    team_data = pd.read_csv(f"data/{SEASON}/teams.csv")
-
-    # Player Names
-    N = dict(
-        zip(
-            player_data["id"],
-            map(
-                lambda n1, n2: n1 + " " + n2,
-                player_data["first_name"],
-                player_data["second_name"],
-            ),
-        )
-    )
-
-    # Prices
-    P = dict(zip(player_data["id"], player_data["now_cost"]))
-
-    # Player IDs
-    I = list(player_data["id"])
-
-    # XP Next Week
-    XPN = dict(zip(player_data["id"], player_data["ep_next"]))
-
-    # Positions
-    PP = {
-        player_id: [
-            int(x == element_type) for x in range(1, 5)
-        ]  # place a '1' in the index which corresponds to the players position
-        for player_id, element_type in zip(
-            player_data["id"], player_data["element_type"]
-        )
-    }
-
-    # Team code -> name map
-    TC = dict(zip(team_data["code"], team_data["short_name"]))
-
-    # player -> team mask
-    PTM = {
-        player_id: {
-            tc: int(tc == team_code) for tc in TC.keys()
-        }  # place a '1' in the index which corresponds to the players position
-        for player_id, team_code in zip(player_data["id"], player_data["team_code"])
-    }
-
-    # player_id -> team name map, good for printing solution
-    T = {
-        player_id: TC[team]
-        for player_id, team in zip(player_data["id"], player_data["team_code"])
-    }
-
-    print(str(len(P)) + " players found")
-
-    return {"P": P, "I": I, "N": N, "XPN": XPN, "PP": PP, "T": T, "TC": TC, "PTM": PTM}
-
-
-def solve(model, solver, data, var):
+def solve(model, solver, var):
     status = solver.solve(model)
+
+    # Fetch data from dataloader singleton
+    DL = Dataloader()
+
+    # unpack vars
+    x, y = var["x"], var["y"]
 
     print(f"Status: {status}")
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
@@ -154,15 +125,23 @@ def solve(model, solver, data, var):
         total_cost = 0
 
         # Collect results
-        for [id, x_val] in var["x"].items():
+        for [id, x_val] in x.items():
             if solver.value(x_val):
-                pos = data["PP"][id].index(1) + 1
-                name = data["N"][id]
-                cost = data["P"][id] / 10
-                team = data["T"][id]
+                pos = DL.player_position_mask[id].index(1) + 1
+                name = DL.player_name[id]
+                cost = DL.player_price[id] / 10
+                team = DL.player_team_name[id]
                 total_cost += cost
 
-                details = [{"id": id, "name": name, "cost": cost, "team": team}]
+                details = [
+                    {
+                        "id": id,
+                        "name": name,
+                        "cost": cost,
+                        "team": team,
+                        "playing": solver.value(y[id]),
+                    }
+                ]
 
                 if players.get(pos):
                     players[pos] += details
@@ -170,14 +149,15 @@ def solve(model, solver, data, var):
                     players[pos] = details
 
         # Display
-        print(f"Maximum of objective function: {solver.objective_value}\n")
+        print(f"Maximum of objective function: {round(solver.objective_value)}\n")
 
         for pos, pos_players in players.items():
             print(f"{POS_LOOKUP[pos]}")
             print("---------------------------------------")
 
             for p in pos_players:
-                print(f"({p['team']}) {p['name']} ({p['id']}) (cost: {p['cost']})")
+                playing = " - PLAYING" if p["playing"] else ""
+                print(f"({p['team']}) {p['name']} ({p['id']}) (cost: {p['cost']})" + playing)
 
             print("")
 
