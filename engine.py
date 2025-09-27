@@ -107,9 +107,7 @@ def build_constraints(model, var):
     # # max 3 players per team
     for t in GWS:
         for team_code in DL.team_code_name.keys():
-            model.add(
-                cp_model.LinearExpr.sum([x[(pid, t)] for pid in pids if players[pid].team_code == team_code]) <= 3
-            )
+            model.add(cp_model.LinearExpr.sum([x[(pid, t)] for pid in pids if players[pid].team_code == team_code]) <= 3)
 
     # max 11 players on the field
     for t in GWS:
@@ -141,44 +139,47 @@ def solve(model, solver, var):
 
     print(f"Status: {status}")
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
-        results = {}
-        total_cost = 0
+        results: list[Player] = {}
 
         # Collect results
         for [(id, t), x_val] in x.items():
             if solver.value(x_val):
-                player = players[id]
-
-                if results.get((t, player.position)):
-                    results[(t, player.position)] += [player]
+                if results.get(t):
+                    results[t] += [players[id]]
                 else:
-                    results[(t, player.position)] = [player]
+                    results[t] = [players[id]]
 
         # Display
         for t in reversed(GWS):
+            total_cost = 0
             print(f"GAMEWEEK {t}")
             print("------------------------------------------------------")
             for pos_value, pos_name in POS_LOOKUP.items():  # for each position, find all players for this GW
                 print(f"{pos_name}:")
-                for (t, pos), players in [(key, players) for (key, players) in results.items() if pos_value in key and t in key]:
-                    for p in players:
-                        playing = " - PLAYING" if solver.value(y[(p.id, t)]) else ""
-                        print(f"({p.team_name}) {p.name} ({p.id}) (price: {p.price / 10})" + playing)
+                for p in [r for r in results[t] if r.position == pos_value]:
+                    total_cost += p.price / 10
+                    playing = " - PLAYING" if solver.value(y[(p.id, t)]) else ""
+                    vs = DL.team_code_name[DL.team_id_team_code[p._vs_team_id[t]]]
+
+                    print(f"({p.team_name}) {p.name} ({p.id}) (price: {p.price / 10}) vs ({vs})", playing)
 
                 print("")
 
-        print("\nTotal Cost: " + str(round(total_cost, 1)))
+            print("Team Value: " + str(round(total_cost, 1)))
+            print("Money in Bank: " + str(round(100 - total_cost, 1)))
+            print("")
+
+        print("------------------------------------------------------")
 
     else:
         print("No solution found.")
 
-    # Statistics.
-    print("\nStatistics")
-    print(f"Maximum of objective function: {round(solver.objective_value)}\n")
-    print(f"  status   : {solver.status_name(status)}")
-    print(f"  conflicts: {solver.num_conflicts}")
-    print(f"  branches : {solver.num_branches}")
-    print(f"  wall time: {solver.wall_time} s")
+    print("\nStatistics:")
+    print(f"Maximum of objective function: {round(solver.objective_value)} ({round(solver.objective_value / len(GWS))} per GW)")
+    print(f"status    - {solver.status_name(status)}")
+    print(f"conflicts - {solver.num_conflicts}")
+    print(f"branches  - {solver.num_branches}")
+    print(f"wall time - {solver.wall_time} s\n")
 
 
 def main():
