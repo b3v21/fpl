@@ -3,7 +3,7 @@ import numpy as np
 from player import Player
 
 SEASON = "2025-26"
-CURRENT_GW = 6
+CURRENT_GW = 7
 TOTAL_GWS = 38
 SIMPLE = False  # Use a smaller dataset for testing
 GW_LOOKAHEAD = 5  # number of GWs to plan for, memory limitations will require this to be < the total number of GWs in the season on some machines
