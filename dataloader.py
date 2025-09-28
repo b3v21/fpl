@@ -5,7 +5,9 @@ from player import Player
 SEASON = "2025-26"
 CURRENT_GW = 6
 TOTAL_GWS = 38
-GWS = range(CURRENT_GW, TOTAL_GWS + 1)
+SIMPLE = False  # Use a smaller dataset for testing
+GW_LOOKAHEAD = 5  # number of GWs to plan for, memory limitations will require this to be < the total number of GWs in the season on some machines
+GWS = range(CURRENT_GW, CURRENT_GW + GW_LOOKAHEAD + 1)
 
 """
 Singleton class for storing and accessing data to be used in the engine
@@ -15,24 +17,29 @@ Singleton class for storing and accessing data to be used in the engine
 class Dataloader:
     _instance = None
     _players: dict[int, Player] = None
+    _simple = False
 
-    def __new__(cls):
+    def __new__(cls, simple=False):
         if cls._instance is None:
+            cls._simple = simple
             print("\nCreating a new instance of the DataLoader.")
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self):
+    def __init__(self, simple=False):
         if not hasattr(self, "initialized"):
             self.initialized = True
-            print("Building lookups")
+            self._simple = simple
             self.build_lookups()
-            print(str(len(self._player_ids)) + " players found\n")
             self.make_players()
 
     # Build Player objects
     def make_players(self):
         self._players = {}
+        if self._simple:
+            self._player_ids = self._player_ids[:200]  # Limit to first players for testing
+
+        print(str(len(self._player_ids)) + " players generated\n")
         for player_id in self._player_ids:
             self._players[player_id] = Player(
                 id=player_id,
@@ -43,7 +50,7 @@ class Dataloader:
                 team_id=self._team_code_team_id[self._player_team_code[player_id]],
                 position=self._player_position[player_id],
                 chance_of_playing=self._player_chance_of_playing[player_id],
-                vs_team_id={t: self._team_vs_team[self._team_code_team_id[self._player_team[player_id]]] for t in GWS},
+                vs_team_id={t: self._team_vs_team[(self._team_code_team_id[self._player_team[player_id]], t)] for t in GWS},
                 vs_team_diff={t: self._player_fixture_difficulty[(player_id, t)] for t in GWS},
                 xp={t: self._player_expected_points[(player_id, t)] for t in GWS},
             )
@@ -55,12 +62,14 @@ class Dataloader:
     @property
     def team_id_team_code(self):
         return self._team_id_team_code
-    
+
     @property
     def team_code_name(self):
         return self._team_code_name
 
     def build_lookups(self):
+        print("Building lookups")
+
         player_data = pd.read_csv(f"data/{SEASON}/players_raw.csv")
         team_data = pd.read_csv(f"data/{SEASON}/teams.csv")
         fixtures = pd.read_csv(f"data/{SEASON}/fixtures.csv")
@@ -89,20 +98,21 @@ class Dataloader:
         #########################################################
         #                  Fixture Related Data
         #########################################################
-
-        self._fixtures_gw = fixtures[fixtures["event"] == CURRENT_GW]
-
-        # Team -> Team being played this GW
         self._team_vs_team = {}
-        for row in self._fixtures_gw.itertuples():
-            self._team_vs_team[row.team_h] = row.team_a
-            self._team_vs_team[row.team_a] = row.team_h
-
-        # Team -> Opposition team difficultly this GW
         self._team_diff = {}
-        for row in self._fixtures_gw.itertuples():
-            self._team_diff[row.team_h] = row.team_a_difficulty
-            self._team_diff[row.team_a] = row.team_h_difficulty
+        
+        for fixture in GWS:
+            self._fixtures_gw = fixtures[fixtures["event"] == fixture]
+
+            # Team -> Team being played this GW
+            for row in self._fixtures_gw.itertuples():
+                self._team_vs_team[(row.team_h, fixture)] = row.team_a
+                self._team_vs_team[(row.team_a, fixture)] = row.team_h
+
+            # Team -> Opposition team difficultly this GW
+            for row in self._fixtures_gw.itertuples():
+                self._team_diff[(row.team_h, fixture)] = row.team_a_difficulty
+                self._team_diff[(row.team_a, fixture)] = row.team_h_difficulty
 
         #########################################################
         #                  Player Related Data
@@ -137,7 +147,7 @@ class Dataloader:
 
         # Fixture Difficulty next week
         self._player_fixture_difficulty = {
-            (player_id, t): self._team_diff[self._team_vs_team[self._team_code_team_id[team_code]]]
+            (player_id, t): self._team_diff[(self._team_code_team_id[team_code], t)]
             for player_id, team_code in zip(player_data["id"], player_data["team_code"])
             for t in GWS
         }
