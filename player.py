@@ -6,7 +6,7 @@ class Player:
     _team_name: str = None
     _team_code: int = None
     _team_id: int = None
-    _position: list[1 | 2 | 3 | 4] = None
+    _position: int = None
     _chance_of_playing: int = None
 
     # Time dependent data
