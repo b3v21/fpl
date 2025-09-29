@@ -1,13 +1,12 @@
 import pandas as pd
-import numpy as np
 from player import Player
 
 SEASON = "2025-26"
 CURRENT_GW = 7
 TOTAL_GWS = 38
 SIMPLE = False  # Use a smaller dataset for testing
-GW_LOOKAHEAD = 5  # number of GWs to plan for, memory limitations will require this to be < the total number of GWs in the season on some machines
-GWS = range(CURRENT_GW, CURRENT_GW + GW_LOOKAHEAD + 1)
+GW_LOOKAHEAD = None  # number of GWs to plan for, memory limitations will require this to be < the total number of GWs in the season on some machines, use None for all GWs
+GWS = range(CURRENT_GW, CURRENT_GW + GW_LOOKAHEAD + 1 if GW_LOOKAHEAD is not None else TOTAL_GWS + 1)
 
 """
 Singleton class for storing and accessing data to be used in the engine
@@ -100,7 +99,7 @@ class Dataloader:
         #########################################################
         self._team_vs_team = {}
         self._team_diff = {}
-        
+
         for fixture in GWS:
             self._fixtures_gw = fixtures[fixtures["event"] == fixture]
 

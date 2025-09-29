@@ -13,6 +13,7 @@ POS_LOOKUP = {GK: "GK", DEF: "DEF", MID: "MID", ATT: "ATT"}
 
 DASH = "-"
 
+
 def run_engine():
     print("Google OR-Tools version:", init.OrToolsVersion.version_string())
 
@@ -35,15 +36,9 @@ def run_engine():
     print("Building Variables...")
     x = {(pid, gw): model.new_int_var(0, 1, f"x_{pid}") for pid in pids for gw in GWS}
     y = {(pid, gw): model.new_int_var(0, 1, f"y_{pid}") for pid in pids for gw in GWS}
-    t = {
-        (p1, p2, gw): model.new_int_var(0, 1, f"t_{p1}_{p2}_{gw}")
-        for p1 in pids
-        for p2 in pids
-        for gw in GWS
-        if players[p1].position == players[p2].position and p1 != p2 and gw > CURRENT_GW
-    }
+    t = {(pid, gw): model.new_int_var(0, 1, f"diff_{pid}_{gw}") for pid in pids for gw in GWS if gw > CURRENT_GW}
 
-    print(len(t) + len(x) + len(y), "variables created.")
+    print(len(x) + len(y) + len(t), "variables created.")
 
     var = [x, y, t]
 
@@ -52,7 +47,7 @@ def run_engine():
     # OBJECTIVE FUNCTION
     model.maximize(
         sum(y[(pid, gw)] * players[pid].xp[gw] for pid in pids for gw in GWS)
-        + sum(y[(pid, gw)] * (2 * -players[pid].vs_team_diff[gw]) for pid in pids for gw in GWS)
+        + sum(y[(pid, gw)] * (3 - players[pid].vs_team_diff[gw]) for pid in pids for gw in GWS)
     )
     # in this niave model, a fixture difficultly of '1' gives the player an XP of +2, '2' is +1, '3' is 0, '4' is -1 and '5' is -2,
     # this is done via the linear function 3 - DF
@@ -131,110 +126,20 @@ def build_constraints(model, var):
         for gw in GWS:
             model.add(y[(pid, gw)] <= x[(pid, gw)])
 
-    ###############################################################################################################
-    # SYSTEM OF 3 CONSTRAINTS TO MAKE SURE A TRANSFER IS TRIGGERED WHEN A PLAYER IS ADDED (/ REMOVED)
-    # These are equivalent to: t = NOT x(gw-1) AND x(gw) (t = (1-x(gw-1)) * x(gw))
-
-    # t >= x(gw) - x(gw-1)
-    for p1 in pids:
-        for gw in GWS:
-            if gw > CURRENT_GW:
-                model.add(
-                    x[(p1, gw)] - x[(p1, gw - 1)]
-                    <= cp_model.LinearExpr.sum(
-                        [t[(p2, p1, gw)] for p2 in pids if players[p1].position == players[p2].position and p1 != p2]
-                    )
-                )
-
-    # t <= x(gw)
-    for p1 in pids:
-        for gw in GWS:
-            if gw > CURRENT_GW:
-                model.add(
-                    x[(p1, gw)]
-                    >= cp_model.LinearExpr.sum(
-                        [t[(p2, p1, gw)] for p2 in pids if players[p1].position == players[p2].position and p1 != p2]
-                    )
-                )
-
-    # t <= 1 - x(gw-1)
-    for p1 in pids:
-        for gw in GWS:
-            if gw > CURRENT_GW:
-                model.add(
-                    1 - x[(p1, gw - 1)]
-                    >= cp_model.LinearExpr.sum(
-                        [t[(p2, p1, gw)] for p2 in pids if players[p1].position == players[p2].position and p1 != p2]
-                    )
-                )
-
-    ###############################################################################################################
-
-    # a player must be in the squad if they are transferred in
-    for p1 in pids:
-        for p2 in pids:
-            if players[p1].position == players[p2].position and p1 != p2:
-                for gw in GWS:
-                    if gw > CURRENT_GW:
-                        model.add(t[(p1, p2, gw)] <= x[(p2, gw)])
-
-    # a player cant be in the squad if they are transferred out
-    for p1 in pids:
-        for p2 in pids:
-            if players[p1].position == players[p2].position and p1 != p2:
-                for gw in GWS:
-                    if gw > CURRENT_GW:
-                        model.add(t[(p1, p2, gw)] + x[(p1, gw)] <= 1)
-
-    # player has to have been in the squad the previous GW to be transferred out
+    # can only make the number of transfers available (1 per GW by default but can bank and use later)
     for gw in GWS:
         if gw > CURRENT_GW:
-            for p1 in pids:
-                for p2 in pids:
-                    if players[p1].position == players[p2].position and p1 != p2:
-                        model.add(t[(p1, p2, gw)] <= x[(p1, gw - 1)])
+            for pid in pids:
+                model.add(t[(pid, gw)] >= x[(pid, gw)] - x[(pid, gw - 1)])
+                model.add(t[(pid, gw)] >= x[(pid, gw - 1)] - x[(pid, gw)])
+                model.add(t[(pid, gw)] <= x[(pid, gw - 1)] + x[(pid, gw)])
 
-    # player cant be transferred in if they are already in the squad
-    for gw in GWS:
-        if gw > CURRENT_GW:
-            for p1 in pids:
-                for p2 in pids:
-                    if players[p1].position == players[p2].position and p1 != p2:
-                        model.add(t[(p1, p2, gw)] + x[(p2, gw - 1)] <= 1)
-
-    # dont transfer a player out and in within the same GW, an equivalent (simpler) solution can be found
-    for gw in GWS:
-        if gw > CURRENT_GW:
-            for p1 in pids:
-                model.add(
-                    cp_model.LinearExpr.sum(
-                        [t[(px, p1, gw)] + t[(p1, px, gw)] for px in pids if px != p1 and players[px].position == players[p1].position]
-                    )
-                    <= 1
-                )
-
-    # dont transfer a player in and then out within the same GW, an equivalent (simpler) solution can be found
-    for gw in GWS:
-        if gw > CURRENT_GW:
-            for p1 in pids:
-                model.add(
-                    cp_model.LinearExpr.sum(
-                        [t[(p1, px, gw)] + t[(px, p1, gw)] for px in pids if px != p1 and players[px].position == players[p1].position]
-                    )
-                    <= 1
-                )
-
-    # <= 1 transfer per GW
-    for gw in GWS:
-        if gw > CURRENT_GW:
             model.add(
-                cp_model.LinearExpr.sum(
-                    [t[(p1, p2, gw)] for p1 in pids for p2 in pids if players[p1].position == players[p2].position and p1 != p2]
-                )
-                <= 1
+                cp_model.LinearExpr.sum([t[(pid, gw)] for pid in pids])
+                <= (2 * (gw - 1) - cp_model.LinearExpr.sum([t[(p, past_gw)] for p in pids for past_gw in GWS if past_gw < gw and past_gw != CURRENT_GW]))
             )
 
-    # # don'gw play any players that are potentially injured / dont exist (cut constraint)
+    # don't play any players that are potentially injured / dont exist
     for pid in pids:
         for gw in GWS:
             if players[pid].chance_of_playing < 75:
@@ -255,6 +160,8 @@ def solve(model, solver, var):
     # unpack vars
     x, y, t = var
 
+    transfer_count = {}
+
     print(f"Status: {status}")
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         results: list[Player] = {}
@@ -274,11 +181,12 @@ def solve(model, solver, var):
             print(f"GAMEWEEK {gw}")
             if gw > CURRENT_GW:
                 print("\nTransfers:")
-                for (p1, p2), t_val in [((p1, p2), t_val) for (p1, p2, g), t_val in t.items() if g == gw]:
-                    if solver.value(t_val):
-                        print(
-                            f"{POS_LOOKUP[players[p1].position]}: ({players[p1].team_name}) {players[p1].name} -> ({players[p2].team_name}) {players[p2].name} (${players[p1].price / 10} -> ${players[p2].price / 10})"
-                        )
+                for p1 in [p for (p, g), val in x.items() if g == gw and (solver.value(val) - solver.value(x[(p, g - 1)])) == 1]:
+                    print("IN:", f"({POS_LOOKUP[players[p1].position]})", players[p1].name, f"(${players[p1].price / 10})")
+                    transfer_count[gw] = transfer_count.get(gw, 0) + 1
+                print("")
+                for p2 in [p for (p, g), val in x.items() if g == gw and (solver.value(x[(p, g - 1)]) - solver.value(val)) == 1]:
+                    print("OUT:", f"({POS_LOOKUP[players[p2].position]})", players[p2].name, f"(${players[p2].price / 10})")
             print(DASH * 80)
             for pos_value, pos_name in POS_LOOKUP.items():  # for each position, find all players for this GW
                 print(f"{pos_name}:")
@@ -301,8 +209,12 @@ def solve(model, solver, var):
         print("No solution found.")
 
     print("\nStatistics:")
-    print(f"Maximum of objective function: {round(solver.objective_value)} ({round(solver.objective_value / len(GWS))} per GW)")
-    print(f"Total Transfers: {sum([solver.value(t_val) for t_val in t.values()])}")
+    print(f"Maximum of objective function: {round(solver.objective_value)} ({round(solver.objective_value / len(GWS))} per GW)\n")
+    print(f"Total Transfers: {sum(transfer_count.values())} ({len(GWS) - sum(transfer_count.values())} left over)")
+    print(f"Transfers per GW:")
+    for gw in GWS:
+        print(f"GW {gw}: {transfer_count.get(gw, 'BANKED')}")
+    print("")
     print(f"status    - {solver.status_name(status)}")
     print(f"conflicts - {solver.num_conflicts}")
     print(f"branches  - {solver.num_branches}")
