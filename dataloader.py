@@ -2,10 +2,10 @@ import pandas as pd
 from player import Player
 
 SEASON = "2025-26"
-CURRENT_GW = 7
+CURRENT_GW = 1
 TOTAL_GWS = 38
-SIMPLE = False  # Use a smaller dataset for testing
-GW_LOOKAHEAD = None  # number of GWs to plan for, memory limitations will require this to be < the total number of GWs in the season on some machines, use None for all GWs
+SIMPLE = True  # Use a smaller dataset for testing
+GW_LOOKAHEAD = None  # number of GWs to plan for, use None for all GWs
 GWS = range(CURRENT_GW, CURRENT_GW + GW_LOOKAHEAD + 1 if GW_LOOKAHEAD is not None else TOTAL_GWS + 1)
 
 """
