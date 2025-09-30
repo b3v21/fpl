@@ -59,7 +59,7 @@ def run_engine():
         + sum(y[(pid, gw)] * (3 * (3 - players[pid].vs_team_diff[gw])) for pid in pids for gw in GWS)
     )
     # in this niave model, a fixture difficultly of '1' gives the player an XP of +2, '2' is +1, '3' is 0, '4' is -1 and '5' is -2,
-    # this is done via the linear function 3 - DF. This is then multipled by 3 to give it more weight in the objective function.
+    # this is done via the linear function 3 - DF. This is then multipled by 3 to give it more weight in the objective function (this will be changed in future).
 
     solve(model, solver, var)
 
@@ -266,11 +266,10 @@ def solve(model, solver, var):
         print("No solution found.")
 
     print("\nStatistics:")
-    print("")
     print(f"status    - {solver.status_name(status)}")
     print(f"conflicts - {solver.num_conflicts}")
     print(f"branches  - {solver.num_branches}")
-    print(f"wall time - {solver.wall_time} s\n")
+    print(f"wall time - {round(solver.wall_time)} seconds\n")
     print(f"Maximum of objective function: {round(solver.objective_value)} ({round(solver.objective_value / len(GWS))} per GW)")
     print(
         f"Total Transfers: {sum(transfer_count.values()) - sum(wildcards.values())} ({len(GWS) - 1 - sum(transfer_count.values()) + sum(wildcards.values())} left over)"
