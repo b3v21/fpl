@@ -1,12 +1,6 @@
 import pandas as pd
 from player import Player
-
-SEASON = "2025-26"
-CURRENT_GW = 1
-TOTAL_GWS = 38
-SIMPLE = True  # Use a smaller dataset for testing
-GW_LOOKAHEAD = None  # number of GWs to plan for, use None for all GWs
-GWS = range(CURRENT_GW, CURRENT_GW + GW_LOOKAHEAD + 1 if GW_LOOKAHEAD is not None else TOTAL_GWS + 1)
+from constants import SEASON, GWS, CURRENT_GW
 
 """
 Singleton class for storing and accessing data to be used in the engine
@@ -16,43 +10,40 @@ Singleton class for storing and accessing data to be used in the engine
 class Dataloader:
     _instance = None
     _players: dict[int, Player] = None
-    _simple = False
 
-    def __new__(cls, simple=False):
+    def __new__(cls):
         if cls._instance is None:
-            cls._simple = simple
             print("\nCreating a new instance of the DataLoader.")
             cls._instance = super().__new__(cls)
         return cls._instance
 
-    def __init__(self, simple=False):
+    def __init__(self):
         if not hasattr(self, "initialized"):
             self.initialized = True
-            self._simple = simple
             self.build_lookups()
             self.make_players()
 
     # Build Player objects
     def make_players(self):
         self._players = {}
-        if self._simple:
-            self._player_ids = self._player_ids[:200]  # Limit to first players for testing
-
-        print(str(len(self._player_ids)) + " players generated\n")
+        
         for player_id in self._player_ids:
-            self._players[player_id] = Player(
-                id=player_id,
-                price=self._player_price[player_id],
-                name=self._player_name[player_id],
-                team_name=self._player_team_name[player_id],
-                team_code=self._player_team_code[player_id],
-                team_id=self._team_code_team_id[self._player_team_code[player_id]],
-                position=self._player_position[player_id],
-                chance_of_playing=self._player_chance_of_playing[player_id],
-                vs_team_id={t: self._team_vs_team[(self._team_code_team_id[self._player_team[player_id]], t)] for t in GWS},
-                vs_team_diff={t: self._player_fixture_difficulty[(player_id, t)] for t in GWS},
-                xp={t: self._player_expected_points[(player_id, t)] for t in GWS},
-            )
+            if self._player_expected_points[(player_id, CURRENT_GW)] >= 2:  # as a heuristic, only include players with xp >= 2
+                self._players[player_id] = Player(
+                    id=player_id,
+                    price=self._player_price[player_id],
+                    name=self._player_name[player_id],
+                    team_name=self._player_team_name[player_id],
+                    team_code=self._player_team_code[player_id],
+                    team_id=self._team_code_team_id[self._player_team_code[player_id]],
+                    position=self._player_position[player_id],
+                    chance_of_playing=self._player_chance_of_playing[player_id],
+                    vs_team_id={t: self._team_vs_team[(self._team_code_team_id[self._player_team[player_id]], t)] for t in GWS},
+                    vs_team_diff={t: self._player_fixture_difficulty[(player_id, t)] for t in GWS},
+                    xp={t: self._player_expected_points[(player_id, t)] for t in GWS},
+                )
+
+        print(str(len(self._players)) + " players generated\n")
 
     @property
     def players(self):
