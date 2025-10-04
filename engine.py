@@ -383,8 +383,10 @@ def solve(model, solver, var):
     print(f"Maximum of objective function: {round(solver.objective_value)} ({round(solver.objective_value / len(GWS))} per GW)")
 
     print(
-        f"Total Transfers: {sum(transfer_count.values())} ({len(GWS) - 1 - sum(transfer_count.values()) - len(free_hits.keys()) - len(wildcards.keys())} left over)"
+        f"Total Transfers: {sum(transfer_count.values())}"
     )
+    
+    # ({len(GWS) - 1 - sum(transfer_count.values()) - len(free_hits.keys()) - len(wildcards.keys())} left over)"
 
     print(f"\nTransfers per GW:")
     for gw in GWS:
@@ -400,9 +402,6 @@ def solve(model, solver, var):
     print("Wild Card used in: ")
     for gw, transfers in wildcards.items():
         print(f"GAMEWEEK {gw} ({transfers} transfers)")
-        for (p,g) in [((p, g), val) for (p,g),val in t.items() if g == gw and solver.value(val)]:
-            print(p, g)
-            
     print("")
     print("Free Hit used in: ")
     for gw, t in free_hits.items():
