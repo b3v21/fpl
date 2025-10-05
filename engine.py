@@ -6,6 +6,7 @@ from dataloader import Dataloader
 from constants import GWS, CURRENT_GW, ATT, MID, DEF, GK, SEASON_HALF_GW
 from solution import Solution
 
+
 def run_engine():
     print("Google OR-Tools version:", init.OrToolsVersion.version_string())
 
@@ -43,7 +44,7 @@ def run_engine():
     tc_used = {gw: model.new_bool_var(f"tc_used_{gw}") for gw in GWS}  # triple cap used
 
     bb_used = {gw: model.new_bool_var(f"bb_used_{gw}") for gw in GWS}  # bench boost used
-    
+
     # aux variable for deciding whether or not a player receives BB points in a gw or not
     bench_boost_points = {(pid, gw): model.new_bool_var(name=f"bb_points_{pid}_{gw}") for pid in pids for gw in GWS}
 
@@ -165,10 +166,9 @@ def build_constraints(model, var):
                 # t ≥ |x1 - x2| (make t detect a transfer)
                 model.add(t[(pid, gw)] >= x[(pid, gw)] - x[(pid, gw - 1)])
                 model.add(t[(pid, gw)] >= x[(pid, gw - 1)] - x[(pid, gw)])
-                
+
                 model.add(t[(pid, gw)] <= x[(pid, gw)] + x[(pid, gw - 1)])
-                model.add(t[(pid, gw)] <= 2 - x[(pid, gw)] - x[(pid, gw - 1)]) 
-               
+                model.add(t[(pid, gw)] <= 2 - x[(pid, gw)] - x[(pid, gw - 1)])
 
             # transfers available this GW (assuming NONE have been used all season)
             trans_this_gw = 2 * (gw - CURRENT_GW)
@@ -271,10 +271,10 @@ def build_constraints(model, var):
     # BB can be used once before GW 19 and once after GW 19
     model.add(cp_model.LinearExpr.sum([bb_used[gw] for gw in GWS if gw <= SEASON_HALF_GW]) <= 1)
     model.add(cp_model.LinearExpr.sum([bb_used[gw] for gw in GWS if gw > SEASON_HALF_GW]) <= 1)
-    
+
     for pid in pids:
         for gw in GWS:
-            model.add(bench_boost_points[(pid, gw)] <= b[(pid, gw)]) 
+            model.add(bench_boost_points[(pid, gw)] <= b[(pid, gw)])
             model.add(bench_boost_points[(pid, gw)] <= bb_used[gw])
             model.add(bench_boost_points[(pid, gw)] >= b[(pid, gw)] + bb_used[gw] - 1)
 
@@ -287,15 +287,16 @@ def build_constraints(model, var):
 def solve(model, solver, var):
     print("\nSolving...")
     status = solver.solve(model)
-    
+
     sol = Solution(var, status, solver)
     print(sol)
-    
-    print("\nStatistics:")
+
+    print("Statistics:")
     print(f"status    - {solver.status_name(status)}")
     print(f"conflicts - {solver.num_conflicts}")
     print(f"branches  - {solver.num_branches}")
     print(f"wall time - {round(solver.wall_time)} seconds\n")
+
 
 if __name__ == "__main__":
     run_engine()
