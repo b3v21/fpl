@@ -3,9 +3,8 @@
 from ortools.init.python import init
 from ortools.sat.python import cp_model
 from dataloader import Dataloader
-from constants import GWS, CURRENT_GW, DASH, POS_LOOKUP, ATT, MID, DEF, GK, SEASON_HALF_GW
-from player import Player
-from termcolor import colored
+from constants import GWS, CURRENT_GW, ATT, MID, DEF, GK, SEASON_HALF_GW
+from solution import Solution
 
 
 def run_engine():
@@ -45,7 +44,7 @@ def run_engine():
     tc_used = {gw: model.new_bool_var(f"tc_used_{gw}") for gw in GWS}  # triple cap used
 
     bb_used = {gw: model.new_bool_var(f"bb_used_{gw}") for gw in GWS}  # bench boost used
-    
+
     # aux variable for deciding whether or not a player receives BB points in a gw or not
     bench_boost_points = {(pid, gw): model.new_bool_var(name=f"bb_points_{pid}_{gw}") for pid in pids for gw in GWS}
 
@@ -167,10 +166,9 @@ def build_constraints(model, var):
                 # t ≥ |x1 - x2| (make t detect a transfer)
                 model.add(t[(pid, gw)] >= x[(pid, gw)] - x[(pid, gw - 1)])
                 model.add(t[(pid, gw)] >= x[(pid, gw - 1)] - x[(pid, gw)])
-                
+
                 model.add(t[(pid, gw)] <= x[(pid, gw)] + x[(pid, gw - 1)])
-                model.add(t[(pid, gw)] <= 2 - x[(pid, gw)] - x[(pid, gw - 1)]) 
-               
+                model.add(t[(pid, gw)] <= 2 - x[(pid, gw)] - x[(pid, gw - 1)])
 
             # transfers available this GW (assuming NONE have been used all season)
             trans_this_gw = 2 * (gw - CURRENT_GW)
@@ -273,10 +271,10 @@ def build_constraints(model, var):
     # BB can be used once before GW 19 and once after GW 19
     model.add(cp_model.LinearExpr.sum([bb_used[gw] for gw in GWS if gw <= SEASON_HALF_GW]) <= 1)
     model.add(cp_model.LinearExpr.sum([bb_used[gw] for gw in GWS if gw > SEASON_HALF_GW]) <= 1)
-    
+
     for pid in pids:
         for gw in GWS:
-            model.add(bench_boost_points[(pid, gw)] <= b[(pid, gw)]) 
+            model.add(bench_boost_points[(pid, gw)] <= b[(pid, gw)])
             model.add(bench_boost_points[(pid, gw)] <= bb_used[gw])
             model.add(bench_boost_points[(pid, gw)] >= b[(pid, gw)] + bb_used[gw] - 1)
 
@@ -290,135 +288,15 @@ def solve(model, solver, var):
     print("\nSolving...")
     status = solver.solve(model)
 
-    # Fetch data from dataloader singleton
-    DL = Dataloader()
-    players = DL.players
+    sol = Solution(var, status, solver)
+    print(sol)
 
-    # unpack vars
-    x, y, t, wc, wc_used, fh, fh_used, tc, tc_used, bb_used, c, b, bench_boost_points = var
-
-    transfer_count = {}
-    wildcards = {}
-    free_hits = {}
-    triple_captains = {}
-    bench_boost = {}
-
-    print(f"Status: {status}")
-    if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
-        results: list[Player] = {}
-
-        # Collect results
-        for [(id, gw), x_val] in x.items():
-            if solver.value(x_val):
-                if results.get(gw):
-                    results[gw] += [players[id]]
-                else:
-                    results[gw] = [players[id]]
-
-        # Collect WC Usage
-        for [gw, val] in wc.items():
-            if solver.value(val):
-                wildcards[gw] = solver.value(val)
-
-        # Collect FH Usage
-        for [gw, val] in fh.items():
-            if solver.value(val):
-                free_hits[gw] = solver.value(val)
-
-        # Collect TC Usage
-        for [(id, gw), val] in tc.items():
-            if solver.value(val):
-                triple_captains[gw] = players[id]
-
-        # ollect BB Usage
-        for [gw, val] in bb_used.items():
-            if solver.value(val):
-                bench_boost[gw] = solver.value(val)
-
-        # Display
-        for gw in reversed(GWS):
-            total_cost = 0
-            print(DASH * 80)
-            if gw == CURRENT_GW:
-                print(f"GAMEWEEK {gw}")
-            if gw > CURRENT_GW:
-                print(f"GAMEWEEK {gw}" + solver.value(fh_used[gw]) * " - FREE HIT USED" + solver.value(wc_used[gw]) * " - WILD CARD USED")
-                print(DASH * 80)
-                print("Transfers:")
-                for p1 in [p for (p, g), val in x.items() if g == gw and (solver.value(val) - solver.value(x[(p, g - 1)])) == 1]:
-                    print("IN:", f"({POS_LOOKUP[players[p1].position]})", players[p1].name, f"(£{players[p1].price / 10})")
-                    if not solver.value(fh_used[gw]) and not solver.value(wc_used[gw]):
-                        transfer_count[gw] = transfer_count.get(gw, 0) + 1
-                print("")
-                for p2 in [p for (p, g), val in x.items() if g == gw and (solver.value(x[(p, g - 1)]) - solver.value(val)) == 1]:
-                    print("OUT:", f"({POS_LOOKUP[players[p2].position]})", players[p2].name, f"(£{players[p2].price / 10})")
-            print(DASH * 80)
-            for pos_value, pos_name in POS_LOOKUP.items():  # for each position, find all players for this GW
-                print(f"{pos_name}:")
-                for p in [r for r in results[gw] if r.position == pos_value]:
-                    total_cost += p.price / 10
-                    playing = colored("PLAYING", "green") if solver.value(y[(p.id, gw)]) else ""
-                    captain = colored(" (CAPTAIN)", "light_yellow") if solver.value(c[(p.id, gw)]) else ""
-                    bench = colored("BENCH", "red") if solver.value(b[(p.id, gw)]) else ""
-                    vs = DL.team_code_name[DL.team_id_team_code[p._vs_team_id[gw]]]
-
-                    print(f"({p.team_name}) {p.name} ({p.id}) (price: {p.price / 10}) vs ({vs}) - " + playing + bench + captain)
-
-                print("")
-
-            print("Team Value: " + str(round(total_cost, 1)))
-            print("Money in Bank: " + str(round(100 - total_cost, 1)))
-            print("")
-
-        print(DASH * 80)
-
-    else:
-        print("No solution found.")
-
-    print("\nStatistics:")
+    print("Statistics:")
     print(f"status    - {solver.status_name(status)}")
     print(f"conflicts - {solver.num_conflicts}")
     print(f"branches  - {solver.num_branches}")
     print(f"wall time - {round(solver.wall_time)} seconds\n")
-    print(f"Maximum of objective function: {round(solver.objective_value)} ({round(solver.objective_value / len(GWS))} per GW)")
-
-    print(
-        f"Total Transfers: {sum(transfer_count.values())}"
-    )
-    
-    # ({len(GWS) - 1 - sum(transfer_count.values()) - len(free_hits.keys()) - len(wildcards.keys())} left over)"
-
-    print(f"\nTransfers per GW:")
-    for gw in GWS:
-        if gw > CURRENT_GW:
-            if gw in wildcards.keys():
-                print(f"GW {gw}: WILDCARD USED ({wildcards[gw]} transfers)")
-            elif gw in free_hits.keys():
-                print(f"GW {gw}: FREE HIT USED ({free_hits[gw]} transfers)")
-            else:
-                print(f"GW {gw}: {transfer_count.get(gw, 'ROLL')}")
-
-    print("")
-    print("Wild Card used in: ")
-    for gw, transfers in wildcards.items():
-        print(f"GAMEWEEK {gw} ({transfers} transfers)")
-    print("")
-    print("Free Hit used in: ")
-    for gw, t in free_hits.items():
-        print(f"GAMEWEEK {gw} ({t} transfers)")
-    print("")
-    print("Triple Captain used in: ")
-    for gw, player in triple_captains.items():
-        print(f"GAMEWEEK {gw} ({player.name})")
-    print("")
-    print("Bench Boost used in: ")
-    for gw in bench_boost.keys():
-        print(f"GAMEWEEK {gw}")
-
-
-def main():
-    run_engine()
 
 
 if __name__ == "__main__":
-    main()
+    run_engine()
