@@ -19,8 +19,6 @@ class Solution:
             self.vars = var
 
             self.build_solution()
-        else:
-            print("\nNo Solution Found")
 
     def build_solution(self):
         x, y, t, wc, wc_used, fh, fh_used, tc, tc_used, bb_used, c, b, bench_boost_points = self.vars
@@ -86,6 +84,20 @@ class Solution:
 
         return
 
+    def was_chip_used(self, gw):
+        chip = ""
+
+        if gw in self.wildcards:
+            chip = colored(" - WILD CARD", "yellow")
+        elif gw in self.free_hits:
+            chip = colored(" - FREE HIT", "yellow")
+        elif gw in self.bench_boosts:
+            chip = colored(" - BENCH BOOST", "yellow")
+        elif gw in self.triple_captains:
+            chip = colored(f" - TRIPLE CAPTAIN ({self.triple_captained_player[gw].name})", "yellow")
+
+        return chip
+
     def __str__(self):
         x, y, t, wc, wc_used, fh, fh_used, tc, tc_used, bb_used, c, b, bench_boost_points = self.vars
 
@@ -94,18 +106,9 @@ class Solution:
         for gw in reversed(GWS):
             str_res += LINE
             str_res += f"GAMEWEEK {gw}"
-            chip = "\n"
 
-            if gw in self.wildcards:
-                chip = colored(" - WILD CARD\n", "yellow")
-            elif gw in self.free_hits:
-                chip = colored(" - FREE HIT\n", "yellow")
-            elif gw in self.bench_boosts:
-                chip = colored(" - BENCH BOOST\n", "yellow")
-            elif gw in self.triple_captains:
-                chip = colored(f" - TRIPLE CAPTAIN ({self.triple_captained_player[gw].name})\n", "yellow")
-
-            str_res += chip
+            str_res += self.was_chip_used(gw)
+            str_res += NEW_LINE
             str_res += LINE
 
             # TRANSFERS IN
@@ -150,4 +153,23 @@ class Solution:
             str_res += LINE
             str_res += NEW_LINE
 
+        str_res += DASH * 35 + " SUMMARY " + DASH * 36
+        str_res += NEW_LINE
+        for gw in GWS:
+            if gw > CURRENT_GW:
+                if gw in self.free_hits:
+                    transfers = f"{len(self.free_hit_transfers[gw])} transfer(s)"
+                elif gw in self.wildcards:
+                    transfers = f"{len(self.wildcard_transfers[gw])} transfer(s)"
+                elif gw in self.transfers_in.keys():
+                    transfers = f"{len(self.transfers_in[gw])} transfer(s)"
+                else:
+                    transfers = "ROLLED"
+            else:
+                transfers = "N/A"
+            chip = self.was_chip_used(gw)
+            str_res += f"GAMEWEEK {gw}: {transfers}{chip}"
+            str_res += NEW_LINE
+        str_res += LINE
+    
         return str_res

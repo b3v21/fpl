@@ -1,6 +1,6 @@
 ########## MODIFY THESE CONSTANTS AS NEEDED ##########
 SEASON = "2025-26"
-CURRENT_GW = 7
+CURRENT_GW = 1
 TOTAL_GWS = 38
 GW_LOOKAHEAD = None  # number of GWs to plan for, use None for all GWs
 

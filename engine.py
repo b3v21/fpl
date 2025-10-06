@@ -288,10 +288,13 @@ def solve(model, solver, var):
     print("\nSolving...")
     status = solver.solve(model)
 
-    sol = Solution(var, status, solver)
-    print(sol)
+    if status:
+        sol = Solution(var, status, solver)
+        print(sol)
+    else:
+        print("\nNo Solution Found")
 
-    print("Statistics:")
+    print("\nStatistics:")
     print(f"status    - {solver.status_name(status)}")
     print(f"conflicts - {solver.num_conflicts}")
     print(f"branches  - {solver.num_branches}")
