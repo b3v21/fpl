@@ -160,11 +160,13 @@ class Dataloader:
         self._player_team = {player_id: team_code for player_id, team_code in zip(player_data["id"], player_data["team_code"])}
 
         # Fixture Difficulty next week
-        self._player_fixture_difficulty = {
-            (player_id, gw): self._team_diff[(self._team_code_team_id[team_code], gw)]
-            for player_id, team_code in zip(player_data["id"], player_data["team_code"])
-            for gw in FUTURE_GWS
-        }
+        self._player_fixture_difficulty = {}
+        for pid in self._player_ids:
+            team_code = player_data[player_data.id == pid].team_code.values[0]
+            team_id = self._team_code_team_id[team_code]
+            for gw in FUTURE_GWS:
+                diff = self._team_diff[(team_id, gw)]
+                self._player_fixture_difficulty[(pid, gw)] = diff
 
         # Chance of playing this week
         self._player_chance_of_playing = dict(zip(player_data["id"], player_data["chance_of_playing_this_round"]))
