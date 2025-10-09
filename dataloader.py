@@ -1,6 +1,7 @@
 import pandas as pd
 from player import Player
-from constants import SEASON, GWS, CURRENT_GW
+from constants import SEASON, CURRENT_GW, FUTURE_GWS, PAST_GWS
+from regression import regression
 
 """
 Singleton class for storing and accessing data to be used in the engine
@@ -26,9 +27,9 @@ class Dataloader:
     # Build Player objects
     def make_players(self):
         self._players = {}
-        
+
         for player_id in self._player_ids:
-            if self._player_expected_points[(player_id, CURRENT_GW)] >= 2:  # as a heuristic, only include players with xp >= 2
+            if self._player_future_xp[(player_id, CURRENT_GW)] >= 2:  # as a heuristic, only include players with xp >= 2 for next week
                 self._players[player_id] = Player(
                     id=player_id,
                     price=self._player_price[player_id],
@@ -38,9 +39,10 @@ class Dataloader:
                     team_id=self._team_code_team_id[self._player_team_code[player_id]],
                     position=self._player_position[player_id],
                     chance_of_playing=self._player_chance_of_playing[player_id],
-                    vs_team_id={t: self._team_vs_team[(self._team_code_team_id[self._player_team[player_id]], t)] for t in GWS},
-                    vs_team_diff={t: self._player_fixture_difficulty[(player_id, t)] for t in GWS},
-                    xp={t: self._player_expected_points[(player_id, t)] for t in GWS},
+                    vs_team_id={t: self._team_vs_team[(self._team_code_team_id[self._player_team[player_id]], t)] for t in FUTURE_GWS},
+                    vs_team_diff={t: self._player_fixture_difficulty[(player_id, t)] for t in FUTURE_GWS},
+                    prev_xp={t: self._player_previous_xp[(player_id, t)] for t in PAST_GWS},
+                    future_xp={t: self._player_future_xp[(player_id, t)] for t in FUTURE_GWS},
                 )
 
         print(str(len(self._players)) + " players generated\n")
@@ -63,6 +65,10 @@ class Dataloader:
         player_data = pd.read_csv(f"data/{SEASON}/players_raw.csv")
         team_data = pd.read_csv(f"data/{SEASON}/teams.csv")
         fixtures = pd.read_csv(f"data/{SEASON}/fixtures.csv")
+        xp_data_dict = {}
+
+        for gw in PAST_GWS:
+            xp_data_dict[gw] = pd.read_csv(f"data/{SEASON}/gws/xP{gw}.csv")
 
         #########################################################
         #                   Team Related Data
@@ -91,7 +97,7 @@ class Dataloader:
         self._team_vs_team = {}
         self._team_diff = {}
 
-        for fixture in GWS:
+        for fixture in FUTURE_GWS:
             self._fixtures_gw = fixtures[fixtures["event"] == fixture]
 
             # Team -> Team being played this GW
@@ -126,8 +132,26 @@ class Dataloader:
         # Player ID -> Price (as of now)
         self._player_price = dict(zip(player_data["id"], player_data["now_cost"]))
 
-        # Player ID -> Expected Points this week
-        self._player_expected_points = {(player_id, t): xp for player_id, xp in zip(player_data["id"], player_data["ep_this"]) for t in GWS}
+        # Player ID -> Expected Points in previous weeks
+        self._player_previous_xp = {}
+
+        for gw in PAST_GWS:
+            for pid in self._player_ids:
+                xp_csv = xp_data_dict[gw]
+                xp = xp_csv[xp_csv.id == pid].xP.values
+
+                if len(xp):
+                    self._player_previous_xp[(pid, gw)] = float(xp)
+                else:
+                    self._player_previous_xp[(pid, gw)] = 0
+
+        # Add XP for future 5 weeks using regression
+        self._player_future_xp = {}
+
+        for gw in FUTURE_GWS:
+            for pid in self._player_ids:
+                future_xp = regression([self._player_previous_xp[(pid, gw)] for gw in PAST_GWS])
+                self._player_future_xp[(pid, gw)] = future_xp[gw - CURRENT_GW]
 
         # Player ID -> Position
         self._player_position = {player_id: pos for player_id, pos in zip(player_data["id"], player_data["element_type"])}
@@ -137,9 +161,9 @@ class Dataloader:
 
         # Fixture Difficulty next week
         self._player_fixture_difficulty = {
-            (player_id, t): self._team_diff[(self._team_code_team_id[team_code], t)]
+            (player_id, gw): self._team_diff[(self._team_code_team_id[team_code], gw)]
             for player_id, team_code in zip(player_data["id"], player_data["team_code"])
-            for t in GWS
+            for gw in FUTURE_GWS
         }
 
         # Chance of playing this week

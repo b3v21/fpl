@@ -1,20 +1,7 @@
 class Player:
-    # Time independent data
-    _id: int = None
-    _price: float = None
-    _name: str = None
-    _team_name: str = None
-    _team_code: int = None
-    _team_id: int = None
-    _position: int = None
-    _chance_of_playing: int = None
-
-    # Time dependent data
-    _vs_team_id: dict[int, int] = None
-    _vs_team_diff: dict[int, int] = None
-    _xp: dict[int, int] = None
-
-    def __init__(self, id, price, name, team_name, team_code, team_id, position, chance_of_playing, vs_team_id, vs_team_diff, xp):
+    def __init__(
+        self, id, price, name, team_name, team_code, team_id, position, chance_of_playing, vs_team_id, vs_team_diff, prev_xp, future_xp
+    ):
         self._id = id
         self._price = price
         self._name = name
@@ -26,7 +13,8 @@ class Player:
 
         self._vs_team_id = vs_team_id
         self._vs_team_diff = vs_team_diff
-        self._xp = xp
+        self._prev_xp = prev_xp
+        self._future_xp = future_xp
 
     @property
     def id(self):
@@ -109,9 +97,17 @@ class Player:
         self._vs_team_diff = value
 
     @property
-    def xp(self):
-        return self._xp
+    def prev_xp(self):
+        return self._prev_xp
 
-    @xp.setter
-    def xp(self, value):
-        self._xp = value
+    @prev_xp.setter
+    def prev_xp(self, value):
+        self._prev_xp = value
+
+    @property
+    def future_xp(self):
+        return self._future_xp
+
+    @future_xp.setter
+    def future_xp(self, value):
+        self._future_xp = value
