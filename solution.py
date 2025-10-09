@@ -1,4 +1,4 @@
-from constants import GWS, CURRENT_GW, DASH, POS_LOOKUP
+from constants import CURRENT_GW, DASH, POS_LOOKUP, FUTURE_GWS, FUTURE_GWS_WITHOUT_CURR
 from player import Player
 from termcolor import colored
 from ortools.sat.python import cp_model
@@ -66,21 +66,19 @@ class Solution:
                 self.bench_boosts.append(gw)
 
         # Collect incoming Transfers
-        for gw in GWS:
-            if gw > CURRENT_GW:
-                for pid in [p for (p, g), val in x.items() if g == gw and (self.solver.value(val) - self.solver.value(x[(p, g - 1)])) == 1]:
-                    if gw in self.free_hits:
-                        self.free_hit_transfers[gw] = self.free_hit_transfers.get(gw, []) + [self.players[pid]]
-                    elif gw in self.wildcards:
-                        self.wildcard_transfers[gw] = self.wildcard_transfers.get(gw, []) + [self.players[pid]]
-                    else:
-                        self.transfers_in[gw] = self.transfers_in.get(gw, []) + [self.players[pid]]
+        for gw in FUTURE_GWS_WITHOUT_CURR:
+            for pid in [p for (p, g), val in x.items() if g == gw and (self.solver.value(val) - self.solver.value(x[(p, g - 1)])) == 1]:
+                if gw in self.free_hits:
+                    self.free_hit_transfers[gw] = self.free_hit_transfers.get(gw, []) + [self.players[pid]]
+                elif gw in self.wildcards:
+                    self.wildcard_transfers[gw] = self.wildcard_transfers.get(gw, []) + [self.players[pid]]
+                else:
+                    self.transfers_in[gw] = self.transfers_in.get(gw, []) + [self.players[pid]]
 
         # Collect outgoing Transfers
-        for gw in GWS:
-            if gw > CURRENT_GW:
-                for pid in [p for (p, g), val in x.items() if g == gw and (self.solver.value(x[(p, g - 1)]) - self.solver.value(val)) == 1]:
-                    self.transfers_out[gw] = self.transfers_out.get(gw, []) + [self.players[pid]]
+        for gw in FUTURE_GWS_WITHOUT_CURR:
+            for pid in [p for (p, g), val in x.items() if g == gw and (self.solver.value(x[(p, g - 1)]) - self.solver.value(val)) == 1]:
+                self.transfers_out[gw] = self.transfers_out.get(gw, []) + [self.players[pid]]
 
         return
 
@@ -103,7 +101,7 @@ class Solution:
 
         str_res = ""
 
-        for gw in reversed(GWS):
+        for gw in reversed(FUTURE_GWS):
             str_res += LINE
             str_res += f"GAMEWEEK {gw}"
 
@@ -155,7 +153,7 @@ class Solution:
 
         str_res += DASH * 35 + " SUMMARY " + DASH * 36
         str_res += NEW_LINE
-        for gw in GWS:
+        for gw in FUTURE_GWS:
             if gw > CURRENT_GW:
                 if gw in self.free_hits:
                     transfers = f"{len(self.free_hit_transfers[gw])} transfer(s)"
@@ -171,5 +169,5 @@ class Solution:
             str_res += f"GAMEWEEK {gw}: {transfers}{chip}"
             str_res += NEW_LINE
         str_res += LINE
-    
+
         return str_res

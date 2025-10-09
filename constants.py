@@ -1,11 +1,13 @@
 ########## MODIFY THESE CONSTANTS AS NEEDED ##########
 SEASON = "2025-26"
-CURRENT_GW = 1
-TOTAL_GWS = 38
-GW_LOOKAHEAD = None  # number of GWs to plan for, use None for all GWs
+CURRENT_GW = 8
+TOTAL_GWS = 38  # this cannot go above 38
 
-########## THESE SHOULD MOSTLY BE STATIC ##########
-GWS = range(CURRENT_GW, (CURRENT_GW + GW_LOOKAHEAD + 1) if GW_LOOKAHEAD is not None else TOTAL_GWS + 1)
+########## THESE SHOULD BE STATIC PENDING ANY MAJOR FPL CHANGES ##########
+NEXT_GW = CURRENT_GW + 1
+PAST_GWS = range(1, CURRENT_GW)
+FUTURE_GWS = range(CURRENT_GW, TOTAL_GWS + 1)
+FUTURE_GWS_WITHOUT_CURR = range(NEXT_GW, TOTAL_GWS + 1)
 
 GK = 1
 DEF = 2
