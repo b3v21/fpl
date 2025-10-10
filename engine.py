@@ -134,10 +134,10 @@ def build_constraints(model, var):
         model.add(cp_model.LinearExpr.sum([y[(pid, gw)] for pid in pids if players[pid].position == ATT]) >= 1)
         model.add(cp_model.LinearExpr.sum([y[(pid, gw)] for pid in pids if players[pid].position == ATT]) <= 3)
 
-    # # max 3 players per team
+    # max 3 players per team
     for gw in FUTURE_GWS:
-        for team in DL.teams:
-            model.add(cp_model.LinearExpr.sum([x[(pid, gw)] for pid in pids if players[pid].team == team]) <= 3)
+        for team in DL.teams.keys():
+            model.add(cp_model.LinearExpr.sum([x[(pid, gw)] for pid in pids if players[pid].team.id == team]) <= 3)
 
     # max 11 players on the field
     for gw in FUTURE_GWS:
