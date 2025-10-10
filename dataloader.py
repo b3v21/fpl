@@ -108,8 +108,8 @@ class Dataloader:
 
             # Team -> Opposition team difficultly this GW
             for row in self._fixtures_gw.itertuples():
-                self._team_diff[(row.team_h, fixture)] = row.team_a_difficulty
-                self._team_diff[(row.team_a, fixture)] = row.team_h_difficulty
+                self._team_diff[(row.team_h, fixture)] = row.team_h_difficulty
+                self._team_diff[(row.team_a, fixture)] = row.team_a_difficulty
 
         #########################################################
         #                  Player Related Data

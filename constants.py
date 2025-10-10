@@ -1,7 +1,9 @@
 ########## MODIFY THESE CONSTANTS AS NEEDED ##########
 SEASON = "2025-26"
-CURRENT_GW = 8
+CURRENT_GW = 2
 TOTAL_GWS = 38  # this cannot go above 38
+FIX_DIFF_COEFF = 3 # 2-5 is a reasonable value for this
+DECAY = 0.75 # decay scalar to add to future player point predictions
 
 ########## THESE SHOULD BE STATIC PENDING ANY MAJOR FPL CHANGES ##########
 NEXT_GW = CURRENT_GW + 1
