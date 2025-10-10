@@ -23,17 +23,17 @@ class Solution:
     def build_solution(self):
         x, y, t, wc, wc_used, fh, fh_used, tc, tc_used, bb_used, c, b, bench_boost_points = self.vars
 
-        self.team: list[Player] = {}
-        self.wildcards = []
-        self.free_hits = []
-        self.triple_captains = []
-        self.bench_boosts = []
+        self.team: dict[int, list[Player]] = {}
+        self.wildcards: list[int] = []
+        self.free_hits: list[int] = []
+        self.triple_captains: list[int] = []
+        self.bench_boosts: list[int] = []
 
-        self.transfers_in = {}
-        self.transfers_out = {}
-        self.free_hit_transfers = {}
-        self.wildcard_transfers = {}
-        self.triple_captained_player = {}
+        self.transfers_in: dict[int, list[Player]] = {}
+        self.transfers_out: dict[int, list[Player]] = {}
+        self.free_hit_transfers: dict[int, list[Player]] = {}
+        self.wildcard_transfers: dict[int, list[Player]] = {}
+        self.triple_captained_player: dict[int, Player] = {}
 
         # Collect results
         for [(id, gw), x_val] in x.items():
@@ -100,8 +100,11 @@ class Solution:
         x, y, t, wc, wc_used, fh, fh_used, tc, tc_used, bb_used, c, b, bench_boost_points = self.vars
 
         str_res = ""
+        total_exp = 0
 
         for gw in reversed(FUTURE_GWS):
+            exp_points = 0
+
             str_res += LINE
             str_res += f"GAMEWEEK {gw}"
 
@@ -112,32 +115,39 @@ class Solution:
             # TRANSFERS IN
             if gw in self.transfers_in.keys():
                 for p in self.transfers_in[gw]:
-                    str_res += colored(f"({POS_LOOKUP[p.position]}) {p.name} (£{p.price / 10})\n", "green")
+                    vs = self.DL.teams[self.DL.team_vs_team[(p.team.id, gw)]]
+                    str_res += colored(f"({POS_LOOKUP[p.position]}) {p.name} (£{p.price / 10})", "green") + f" vs ({vs})\n"
 
             elif gw in self.wildcard_transfers.keys():
                 for p in self.wildcard_transfers[gw]:
-                    str_res += colored(f"({POS_LOOKUP[p.position]}) {p.name} (£{p.price / 10})\n", "yellow")
+                    vs = self.DL.teams[self.DL.team_vs_team[(p.team.id, gw)]]
+                    str_res += colored(f"({POS_LOOKUP[p.position]}) {p.name} (£{p.price / 10})", "yellow") + f" vs ({vs})\n"
 
             elif gw in self.free_hit_transfers.keys():
                 for p in self.free_hit_transfers[gw]:
-                    str_res += colored(f"({POS_LOOKUP[p.position]}) {p.name} (£{p.price / 10})\n", "yellow")
+                    vs = self.DL.teams[self.DL.team_vs_team[(p.team.id, gw)]]
+                    str_res += colored(f"({POS_LOOKUP[p.position]}) {p.name} (£{p.price / 10})", "yellow") + f" vs ({vs})\n"
 
             # TRANSFERS OUT
             if gw in self.transfers_out.keys():
                 for p in self.transfers_out[gw]:
-                    str_res += colored(f"({POS_LOOKUP[p.position]}) {p.name} (£{p.price / 10})\n", "red")
+                    vs = self.DL.teams[self.DL.team_vs_team[(p.team.id, gw)]]
+                    str_res += colored(f"({POS_LOOKUP[p.position]}) {p.name} (£{p.price / 10})", "red") + f" WAS vs ({vs})\n"
                 str_res += LINE
 
             for pos, pos_name in POS_LOOKUP.items():
                 str_res += f"{pos_name}:\n"
                 for player in self.team[(gw, pos)]:
-                    vs = self.DL.team_code_name[self.DL.team_id_team_code[player._vs_team_id[gw]]]
-                    str_res += f"({player.team_name}) {player.name} (price: {player.price / 10}) vs ({vs})"
+                    vs = self.DL.teams[self.DL.team_vs_team[(player.team.id, gw)]]
+                    str_res += f"({player.team}) {player.name} (price: {player.price / 10})"
 
                     if self.solver.value(y[(player.id, gw)]):
-                        str_res += colored(" PLAYING", "light_green")
+                        exp_points += self.DL.player_future_xp[(player.id, gw)]
+                        str_res += colored(" PLAYING", "light_green") + f" vs ({vs})"
                     else:
-                        str_res += colored(" BENCH", "light_red")
+                        if gw in self.bench_boosts:
+                            exp_points += self.DL.player_future_xp[(player.id, gw)]
+                        str_res += colored(" BENCH", "light_red") + f" vs ({vs})"
 
                     if self.solver.value(tc[(player.id, gw)]):
                         str_res += colored(" (c)", "yellow")
@@ -148,10 +158,15 @@ class Solution:
 
                 str_res += NEW_LINE
 
+            str_res += f"Gameweek Expected Points: {round(exp_points)}"
+            total_exp += round(exp_points)
+            str_res += NEW_LINE
+
             str_res += LINE
             str_res += NEW_LINE
 
-        str_res += DASH * 35 + " SUMMARY " + DASH * 36
+        str_res += DASH * 35 + " SUMMARY " + DASH * 36 + NEW_LINE
+        str_res += colored(f"Total Expected Points: {round(total_exp)} ({round(total_exp/len(FUTURE_GWS))} on average)", "green") + NEW_LINE
         str_res += NEW_LINE
         for gw in FUTURE_GWS:
             if gw > CURRENT_GW:

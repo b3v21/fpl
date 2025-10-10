@@ -60,7 +60,7 @@ def run_engine():
         + sum(c[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # captain extra xp
         + sum(tc[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # triple cap extra xp
         + sum(bench_boost_points[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # bench boost extra xp
-        + sum(y[(pid, gw)] * (2 * (3 - players[pid].vs_team_diff[gw])) for pid in pids for gw in FUTURE_GWS)
+        + sum(y[(pid, gw)] * (3 * (3 - players[pid].vs_team_diff[gw])) for pid in pids for gw in FUTURE_GWS)
     )
 
     solve(model, solver, var)
@@ -128,8 +128,8 @@ def build_constraints(model, var):
 
     # # max 3 players per team
     for gw in FUTURE_GWS:
-        for team_code in DL.team_code_name.keys():
-            model.add(cp_model.LinearExpr.sum([x[(pid, gw)] for pid in pids if players[pid].team_code == team_code]) <= 3)
+        for team in DL.teams:
+            model.add(cp_model.LinearExpr.sum([x[(pid, gw)] for pid in pids if players[pid].team == team]) <= 3)
 
     # max 11 players on the field
     for gw in FUTURE_GWS:

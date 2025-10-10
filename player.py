@@ -1,13 +1,12 @@
+from team import Team
+
+
 class Player:
-    def __init__(
-        self, id, price, name, team_name, team_code, team_id, position, chance_of_playing, vs_team_id, vs_team_diff, prev_xp, future_xp
-    ):
+    def __init__(self, id, price, name, team, position, chance_of_playing, vs_team_id, vs_team_diff, prev_xp, future_xp):
         self._id = id
         self._price = price
         self._name = name
-        self._team_name = team_name
-        self._team_code = team_code
-        self._team_id = team_id
+        self._team: Team = team
         self._position = position
         self._chance_of_playing = chance_of_playing
 
@@ -41,28 +40,12 @@ class Player:
         self._name = value
 
     @property
-    def team_name(self):
-        return self._team_name
+    def team(self):
+        return self._team
 
-    @team_name.setter
-    def team_name(self, value):
-        self._team_name = value
-
-    @property
-    def team_code(self):
-        return self._team_code
-
-    @team_code.setter
-    def team_code(self, value):
-        self._team_code = value
-
-    @property
-    def team_id(self):
-        return self._team_id
-
-    @team_id.setter
-    def team_id(self, value):
-        self._team_id = value
+    @team.setter
+    def team(self, value):
+        self._team = value
 
     @property
     def position(self):
