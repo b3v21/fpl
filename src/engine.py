@@ -2,18 +2,20 @@
 
 from ortools.init.python import init
 from ortools.sat.python import cp_model
-from dataloader import Dataloader
+from lib.dataloader import Dataloader
 from constants import DECAY, FUTURE_GWS, CURRENT_GW, ATT, MID, DEF, GK, SEASON_HALF_GW, FUTURE_GWS_WITHOUT_CURR, FIX_DIFF_COEFF
-from solution import Solution
+from lib.solution import Solution
+from lib.player import Player
 
 # TODO LIST:
 # FIX ISSUE WITH LINEAR REGRESSION, CURRENTLY IT PREDICTS PLAYERS GETTING VERY HIGH
 # POINTS AS THE SEASON GOES ON. NEED TO USE ANOTHER TYPE OF REGRESSION PERHAPS?
-# 
+#
 # INCLUDE PREVIOUS SEASON DATA IN THE MODEL - CURRENTLY THE MODEL IS USELESS IF ITS RAN WITH CURRENT_GW
 # SET TO ANYTHING LESS THAN ABOUT 5 AS IT ONLY DRAWS ON THIS YEARS DATA
 #
 # LOOK FOR SPEED UPS IN THE MODEL, IT IS TOO SLOW WHEN RAN FOR THE WHOLE SEASON
+
 
 def run_engine():
     print("Google OR-Tools version:", init.OrToolsVersion.version_string())
@@ -68,7 +70,7 @@ def run_engine():
         + sum(c[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # captain extra xp
         + sum(tc[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # triple cap extra xp
         + sum(bench_boost_points[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # bench boost extra xp
-        + sum(y[(pid, gw)] * (FIX_DIFF_COEFF * (3 - players[pid].vs_team_diff[gw])) for pid in pids for gw in FUTURE_GWS)
+        + sum(y[(pid, gw)] * (FIX_DIFF_COEFF * (3 - players[pid].get_fixture_diff(gw))) for pid in pids for gw in FUTURE_GWS)
     )
 
     solve(model, solver, var)
@@ -84,7 +86,7 @@ def build_constraints(model, var):
 
     # Fetch data from dataloader singleton
     DL = Dataloader()
-    players = DL.players
+    players: dict[int, Player] = DL.players
     pids = players.keys()
 
     # cost constraint
