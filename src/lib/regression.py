@@ -1,6 +1,6 @@
 import numpy as np
 from sklearn.linear_model import LinearRegression
-from constants import CURRENT_GW, FUTURE_GWS
+from src.constants import CURRENT_GW, FUTURE_GWS
 
 
 def regression(previous_xp: list[float]):
