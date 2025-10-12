@@ -154,6 +154,8 @@ class Solution:
                     elif self.solver.value(c[(player.id, gw)]):
                         str_res += colored(" (c)", "blue")
 
+                    str_res += colored(f" - xP: {round(player.future_xp[gw])}", "magenta")
+
                     str_res += NEW_LINE
 
                 str_res += NEW_LINE

@@ -1,8 +1,10 @@
 import pandas as pd
 from .player import Player
-from constants import SEASON, PAST_GWS, NEXT_GW
+from constants import SEASON, PAST_GWS, NEXT_GW, CURRENT_GW
 from .team import Team
 from .fixture import Fixture
+from .predict_xp import train_model, predict
+import heapq
 
 """
 Singleton class for storing and accessing data to be used in the engine
@@ -39,11 +41,12 @@ class Dataloader:
         return self._fixtures
 
     def build_objects(self):
-        print("Building data objects")
+        print("Building data objects...\n")
 
         player_data = pd.read_csv(f"data/{SEASON}/players_raw.csv")
         team_data = pd.read_csv(f"data/{SEASON}/teams.csv")
         fixtures = pd.read_csv(f"data/{SEASON}/fixtures.csv")
+        merged_gw = pd.read_csv(f"data/{SEASON}/gws/merged_gw.csv")
 
         xp_data_dict = {}
         for gw in PAST_GWS:
@@ -63,7 +66,7 @@ class Dataloader:
         for pid in self._player_ids:
             self._player_team[pid] = self._teams[self._player_team_id[pid]]
 
-        print(str(len(self._teams)) + " teams loaded")
+        print(str(len(self._teams)) + " teams loaded.")
 
         self._fixtures: dict[int, Fixture] = {}
         self._player_fixtures: dict[int, dict:[int, Fixture]] = {}
@@ -84,16 +87,22 @@ class Dataloader:
                 if self._player_team[pid].id == fix.team_a.id or self._player_team[pid].id == fix.team_h.id
             }
 
-        print(str(len(self._fixtures)) + " fixtures loaded")
+        print(str(len(self._fixtures)) + " fixtures loaded.")
 
         for pid in self._player_ids:
             player = Player(pid, player_data[player_data.id == pid], self._player_team[pid], self._player_fixtures[pid])
+            self._players[pid] = player
 
-            if player.future_xp[NEXT_GW] >= 2:
-                self._players[pid] = player
+        print(str(len(self._players)) + " players loaded.\n")
 
-        print(str(len(self._players)) + " players loaded\n")
+        print("Loading XP Data...")
+        players = list(self._players.values())
+        model, training_data_count = train_model(merged_gw, players)
+        predict(model, players, merged_gw)
+        print(f"XP model trained with {training_data_count} data points.\n")
 
-        # Generate future predictions
-        # for player in self._players.values():
-        #     player.load_future_data()
+        # TODO: improve how we TRAIN model with all players, but remove < 2 XP players from LP
+        self._players = {id: player for (id, player) in self._players.items() if player.future_xp[CURRENT_GW] >= 2}
+
+        print(heapq.nlargest(5, [(player.name, player.future_xp[CURRENT_GW]) for player in self._players.values()], key=lambda x: x[1]))
+    
