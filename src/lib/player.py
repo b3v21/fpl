@@ -9,6 +9,7 @@ class Player:
         self._metadata = metadata
         self._team: Team = team
         self._fixtures: dict[int, Fixture] = fixtures
+        self._future_xp: dict[int, int] = {}
 
     def get_vs_gw(self, gw):
         fixture = self.fixtures[gw]
@@ -21,11 +22,23 @@ class Player:
     def get_fixture_diff(self, gw):
         return self.get_vs_gw(gw).difficulty
 
-    def load_future_data():
-        return
+    def is_home_gw(self, gw):
+        fixture = self.fixtures[gw]
+
+        if self.team == fixture.team_a:
+            return False
+        else:
+            return True
 
     def __str__(self):
         return self.name
+
+    def __repr__(self):
+        return self.name
+
+    @property
+    def metadata(self):
+        return self._metadata
 
     @property
     def id(self):
@@ -53,7 +66,12 @@ class Player:
 
     @property
     def future_xp(self):
-        return {gw: self._metadata['ep_next'].values[0] for gw in FUTURE_GWS}  # TODO: attach to supervised learning model
+        return self._future_xp 
+
+    def set_future_xp(self, gw, value):
+         # TODO: FOR NOW WE SET ALL FUTURE GWS TO HAVE THE VALUE THE MODEL RETURNS
+        for g in FUTURE_GWS:
+            self._future_xp[g] = value
 
     @property
     def fixtures(self):

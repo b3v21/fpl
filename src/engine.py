@@ -70,7 +70,6 @@ def run_engine():
         + sum(c[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # captain extra xp
         + sum(tc[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # triple cap extra xp
         + sum(bench_boost_points[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # bench boost extra xp
-        + sum(y[(pid, gw)] * (FIX_DIFF_COEFF * (3 - players[pid].get_fixture_diff(gw))) for pid in pids for gw in FUTURE_GWS)
     )
 
     solve(model, solver, var)
