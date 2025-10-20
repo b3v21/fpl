@@ -3,18 +3,20 @@
 from ortools.init.python import init
 from ortools.sat.python import cp_model
 from lib.dataloader import Dataloader
-from constants import DECAY, FUTURE_GWS, CURRENT_GW, ATT, MID, DEF, GK, SEASON_HALF_GW, FUTURE_GWS_WITHOUT_CURR, FIX_DIFF_COEFF
+from constants import DECAY, FUTURE_GWS, CURRENT_GW, ATT, MID, DEF, GK, SEASON_HALF_GW, FUTURE_GWS_WITHOUT_CURR
 from lib.solution import Solution
 from lib.player import Player
 
 # TODO LIST:
-# FIX ISSUE WITH LINEAR REGRESSION, CURRENTLY IT PREDICTS PLAYERS GETTING VERY HIGH
-# POINTS AS THE SEASON GOES ON. NEED TO USE ANOTHER TYPE OF REGRESSION PERHAPS?
+#
+# MODEL IS WAY TOO SENSITIVE TO RECENT PERFORMANCES - FIX THIS
 #
 # INCLUDE PREVIOUS SEASON DATA IN THE MODEL - CURRENTLY THE MODEL IS USELESS IF ITS RAN WITH CURRENT_GW
 # SET TO ANYTHING LESS THAN ABOUT 5 AS IT ONLY DRAWS ON THIS YEARS DATA
 #
 # LOOK FOR SPEED UPS IN THE MODEL, IT IS TOO SLOW WHEN RAN FOR THE WHOLE SEASON
+#
+# USE XGBOOST OR SIMILAR TO PREDICT PLAYER XP IN FUTURE GWS BEYOND NEXT, MAYBE USE SOME KIND OF RECURRENT MODEL
 
 
 def run_engine():
@@ -67,9 +69,9 @@ def run_engine():
     # OBJECTIVE FUNCTION
     model.maximize(
         sum(y[(pid, gw)] * decay(gw) * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # standard player xp
-        + sum(c[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # captain extra xp
-        + sum(tc[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # triple cap extra xp
-        + sum(bench_boost_points[(pid, gw)] * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # bench boost extra xp
+        + sum(c[(pid, gw)] * decay(gw) * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # captain extra xp
+        + sum(tc[(pid, gw)] * decay(gw) * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # triple cap extra xp
+        + sum(bench_boost_points[(pid, gw)] * decay(gw) * players[pid].future_xp[gw] for pid in pids for gw in FUTURE_GWS)  # bench boost extra xp
     )
 
     solve(model, solver, var)

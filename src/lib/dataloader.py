@@ -1,6 +1,6 @@
 import pandas as pd
 from .player import Player
-from constants import SEASON, PAST_GWS, NEXT_GW, CURRENT_GW, FUTURE_GWS
+from constants import SEASON, PAST_GWS, FUTURE_GWS
 from .team import Team
 from .fixture import Fixture
 from .predict_xp import train_model, predict
@@ -105,4 +105,8 @@ class Dataloader:
         print("Removing players with < 2 avg XP...\n")
         self._players = {id: player for (id, player) in self._players.items() if np.mean([player.future_xp[gw] for gw in FUTURE_GWS]) >= 2}
 
+        # haaland = self._players[430].future_xp
+        
+        # for gw, xp in haaland.items():
+        #     print(f"GW {gw}: {xp * DECAY ** (gw + 1 - CURRENT_GW)} xp")
         # print(heapq.nlargest(5, [(player.name, player.future_xp[CURRENT_GW]) for player in self._players.values()], key=lambda x: x[1]))
