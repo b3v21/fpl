@@ -1,10 +1,11 @@
 import pandas as pd
 from .player import Player
-from constants import SEASON, PAST_GWS, NEXT_GW, CURRENT_GW
+from constants import SEASON, PAST_GWS, NEXT_GW, CURRENT_GW, FUTURE_GWS
 from .team import Team
 from .fixture import Fixture
 from .predict_xp import train_model, predict
 import heapq
+import numpy as np
 
 """
 Singleton class for storing and accessing data to be used in the engine
@@ -101,8 +102,7 @@ class Dataloader:
         predict(model, players, merged_gw)
         print(f"XP model trained with {training_data_count} data points.\n")
 
-        # TODO: improve how we TRAIN model with all players, but remove < 2 XP players from LP
-        self._players = {id: player for (id, player) in self._players.items() if player.future_xp[CURRENT_GW] >= 2}
+        print("Removing players with < 2 avg XP...\n")
+        self._players = {id: player for (id, player) in self._players.items() if np.mean([player.future_xp[gw] for gw in FUTURE_GWS]) >= 2}
 
-        print(heapq.nlargest(5, [(player.name, player.future_xp[CURRENT_GW]) for player in self._players.values()], key=lambda x: x[1]))
-    
+        # print(heapq.nlargest(5, [(player.name, player.future_xp[CURRENT_GW]) for player in self._players.values()], key=lambda x: x[1]))
